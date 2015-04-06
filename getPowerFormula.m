@@ -5,21 +5,16 @@
 % Trent Taylor
 
 %% DESCRIPTION
-% This function is the Hognestead equation for determining the stress at a
-% given strain.
+% This function gets the stress in prestress steel based off of the power
+% formula.
 
-function [ value ] = getHognestad( fc, eps, eps_0 )
-%GETHOGNESTAD gets stress at a given strain
+function [ fs ] = getPowerFormula( eps_s, fpy, fpu, Es, Q, R, K )
+%GETPOWERFORMULA gets the stress in strands by the power formula.
 
+fs = Es*eps_s*(Q+(1-Q)/((1+((Es*abs(eps_s)/(K*fpy))^R))^(1/R)));
 
-%% Hognestad equation
-
-value = fc.*((2.*eps)./eps_0 - (eps./eps_0).^2); 
-
-% Hognestad, E., Hanson, N. W., & McHenry, D. (1955, December). 
-% Concrete stress distribution in ultimate strength design. In ACI 
-% Journal Proceedings (Vol. 52, No. 12). ACI.
-
+if abs(fs) > abs(fpu)
+    error(['INVALID STRESS: Power formula out of bounds. ',num2str(abs(fs)), ' > ', num2str(abs(fpu))]);
 
 end
 

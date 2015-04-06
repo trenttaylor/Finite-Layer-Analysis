@@ -5,21 +5,18 @@
 % Trent Taylor
 
 %% DESCRIPTION
-% This function is the Hognestead equation for determining the stress at a
-% given strain.
-
-function [ value ] = getHognestad( fc, eps, eps_0 )
-%GETHOGNESTAD gets stress at a given strain
+% This function gets the strain at a specified depth based off of the
+% specified curvature.
 
 
-%% Hognestad equation
+function [ strain ] = getStrainAtDepth( distance, curvature )
+%GETSTRAINATDEPTH gets the strain based off of curvature and depth
 
-value = fc.*((2.*eps)./eps_0 - (eps./eps_0).^2); 
+strain = -distance*tan(curvature); 
 
-% Hognestad, E., Hanson, N. W., & McHenry, D. (1955, December). 
-% Concrete stress distribution in ultimate strength design. In ACI 
-% Journal Proceedings (Vol. 52, No. 12). ACI.
+% -or-
 
+%strain = distance*curvature %small angle assumption
 
 end
 
