@@ -14,6 +14,7 @@ clear
 clc
 fprintf([fileread('license'),'\n\n']);
 disp('FINITE LAYER ANALYSIS');
+
 %% INPUT PARAMETERS
 disp('Getting Cross Sectional Data');
 load('defaults.mat');
@@ -131,7 +132,7 @@ for eps = eps_all
                 f_bot = getHognestad(layer_c{1}.compressiveStrength,strain_bot,eps);
                 
                 %% calculate force at sub layer
-                F_conc_subLayers(size(F_conc_subLayers,2)+1) = dh*(f_top + f_bot)/2;
+                F_conc_subLayers(size(F_conc_subLayers,2)+1) = dh*b*(f_top + f_bot)/2;
                 h_subLayers(size(h_subLayers,2)+1) = c-(subLayer+dh/2);
             end
         end
@@ -143,8 +144,8 @@ for eps = eps_all
         
         for layer_ps = layers_ps(1:end)
             
-            dp = layer_ps{1}.centroid - c;
-            eps_s = getStrainAtDepth(dh,phi);
+            e = layer_ps{1}.centroid - c;
+            eps_s = getStrainAtDepth(e,phi);
             Q = .031;
             R = 7.36;
             K = 1.04;
@@ -169,25 +170,24 @@ for eps = eps_all
             delete(h_wait);
             error('Non-converging solution. Exceeded maximum number of iterations');
         end
-        
-        
-        
     end
-    
     
     delete(h_wait);
     
     %% Calculate Moment Capacity
-    Mn = dp*F_ps;
+    Mn = e*F_ps; %TODO: Fix assumption of single layer of ps
     test_cases{i}.moment = Mn;
     test_cases{i}.curvature = phi;
     
     Mn_all(size(Mn_all,2)+1) = -Mn;
     phi_all(size(phi_all,2)+1) = phi;
     
-    disp(['TEST CASE COMPLETE']);
-    disp(['Nominal Moment Capacity: ', num2str(test_cases{i}.moment),' kip-in']);
+    disp(['TEST CASE COMPLETE eps = ', num2str(eps)]);
+    disp(['Nominal Moment Capacity: ', num2str(test_cases{i}.moment),' lbf-in, ',num2str(test_cases{i}.moment/12000),' kip-ft']);
     disp(['Neutral Axis Depth: ', num2str(c), ' in']);
+    
+    figure;
+    plot(F_conc_subLayers,h_subLayers);
     
 end 
 

@@ -1,5 +1,5 @@
 %% FINITE LAYER ANALYSIS
-% getHognestad.m
+% getStrainAtDepth.m
 
 % 3 Apr 2015
 % Trent Taylor
