@@ -1,0 +1,19 @@
+%% FINITE LAYER ANALYSIS
+% getSteelCentroid.m
+
+% 16 Mar 2015
+% Trent Taylor
+
+function [ output_args ] = getSteelCentroid( layers_steel )
+%GETSTEELCENTROID calculates the centroid of steel layers
+%   getSteelCentroid calculates the centroid of the steel layers based off
+%   of the steel structure that is input by the user.
+
+%% Determine the total area
+As_layers = layers_steel{1,1:end}.area;
+centroid_layers = layers_steel{1,1:end}
+
+
+
+end
+
