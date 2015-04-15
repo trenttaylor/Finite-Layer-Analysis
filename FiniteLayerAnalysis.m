@@ -118,18 +118,19 @@ for eps = eps_all
             
             for subLayer = layer_c{1}.distanceToBot:-dh:layer_c{1}.distanceToTop+dh
                 %% calculate stress at top & bottom using hognestead, assuming cracked behavior
-                                
+                Ec = 57000*layer_c{1}.compressiveStrength;
+                
                 strain_top = getStrainAtDepth(c-subLayer+dh,phi);
                 if (strain_top < 0)
                     strain_top = 0;
                 end 
-                f_top = getHognestad(layer_c{1}.compressiveStrength,strain_top,eps);
+                f_top = getHognestad(layer_c{1}.compressiveStrength,strain_top,Ec,eps);
                 
                 strain_bot = getStrainAtDepth(c-subLayer,phi);
                 if (strain_bot < 0)
                     strain_bot = 0;
                 end
-                f_bot = getHognestad(layer_c{1}.compressiveStrength,strain_bot,eps);
+                f_bot = getHognestad(layer_c{1}.compressiveStrength,strain_bot,Ec,eps);
                 
                 %% calculate force at sub layer
                 F_conc_subLayers(size(F_conc_subLayers,2)+1) = dh*b*(f_top + f_bot)/2;

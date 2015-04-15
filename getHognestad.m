@@ -8,13 +8,30 @@
 % This function is the Hognestead equation for determining the stress at a
 % given strain.
 
-function [ value ] = getHognestad( fc, eps, eps_0 )
+function [ value ] = getHognestad( fc, eps, Ec, eps_0 )
 %GETHOGNESTAD gets stress at a given strain
 
 
 %% Hognestad equation
+fr = -7.5*sqrt(fc);
 
-value = fc.*((2.*eps)./eps_0 - (eps./eps_0).^2); 
+eps_r = fr/Ec;
+
+fcc = fc.*((2.*.003)./eps_0 - (.003./eps_0).^2);
+
+if eps < 2*eps_r
+    value = 0;
+elseif eps < eps_r
+    value = fr*(eps-eps_r)/(eps_r);
+elseif eps < 0
+    value = fr*(eps_r-eps)/(eps_r);
+elseif eps < .003
+    value = fc.*((2.*eps)./eps_0 - (eps./eps_0).^2); 
+elseif eps < .01
+    value = fcc*(1-(eps-.003)/(.01-.003));
+else
+    value = 0;
+end
 
 % Hognestad, E., Hanson, N. W., & McHenry, D. (1955, December). 
 % Concrete stress distribution in ultimate strength design. In ACI 
