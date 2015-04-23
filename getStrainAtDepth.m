@@ -12,7 +12,7 @@
 function [ strain ] = getStrainAtDepth( distance, curvature )
 %GETSTRAINATDEPTH gets the strain based off of curvature and depth
 
-strain = -distance*tan(curvature); 
+strain = distance*tan(curvature); 
 
 % -or-
 

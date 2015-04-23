@@ -39,7 +39,7 @@ end
 % numerical tolerances
 sub_layers = 100; % number of layers to divide each layer
 tolerance = .001; % tolerance factor for numerical calculations (should be less than or equal to .001)
-max_iterations = 1e9; % maximum number of iterations
+max_iterations = 100; % maximum number of iterations
 
 %% CALCULATIONS
 %% Section Properties
@@ -55,14 +55,13 @@ Mn_all = [];
 phi_all = [];
 
 %% set up test cases
-test_cases{1}.eps = -.0001;
-test_cases{2}.eps = 0;
-test_cases{3}.eps = .0005;
-test_cases{4}.eps = .001;
-test_cases{5}.eps = .0015;
-test_cases{6}.eps = .002;
-test_cases{7}.eps = .0025;
-test_cases{8}.eps = .003;
+test_cases{1}.eps = 0.001;
+
+for eps = test_cases{1}.eps:.0001:.003
+    test_cases{end+1}.eps = eps;
+end
+
+%%
 
 temp = [test_cases{:}];
 eps_all = [temp(:).eps];
@@ -79,31 +78,40 @@ for eps = eps_all
     
     %% guess c
     c = dt_ps / 2;
+    % set limits for bisection
+    c_toplimit = 0;
+    c_botlimit = layers_conc{end}.distanceToBot;
 
     h_wait = waitbar(0,'Name');
     set(h_wait,'Name',['Test Case ', num2str(i), ' eps = ',num2str(test_cases{i}.eps)]);
     
     diff_max = diff;
+    %diff
+    %tolerance
     
-    while (diff > tolerance)
+    while (abs(diff) > tolerance)
         j = j+1;
         F_conc_subLayers = [];
         F_ps_subLayers = [];
         h_subLayers = [];
+        f_mid = [];
         
         %% re-estimate c after first iteration
-        if (j~=1 && F_conc > F_ps + F_r)
+        if (j~=1 && -F_conc > F_ps + F_r)
             % F_conc is too big, decrease c
-            c = c - c*tolerance;
-            %disp(['Re-estimating c: ',num2str(c)]);
+            c_botlimit = c;
+            c = .5 * (c_toplimit + c_botlimit);
             
             diff_max = max(diff_max,diff);
-            waitbar((1-abs(diff/diff_max)),h_wait,['Current c = ', sprintf('%12.9f',c)])
+            waitbar((1-abs(diff/diff_max)),h_wait,['Current c = ', sprintf('%12.2f',c),' diff = ',sprintf('%12.2f',diff)])
             
-        elseif (j~=1 && F_conc < F_ps + F_r)
+        elseif (j~=1 && -F_conc < F_ps + F_r)
             % F_conc is too small, increase c
-            c = c + c*tolerance;
-            %disp(['Re-estimating c: ',num2str(c)]);
+            c_toplimit = c;
+            c = .5 * (c_toplimit + c_botlimit);
+            
+            diff_max = max(diff_max,diff);
+            waitbar((1-abs(diff/diff_max)),h_wait,['Current c = ', sprintf('%12.2f',c),' diff = ',sprintf('%12.2f',diff)])
         end
         
         %% curvature
@@ -120,19 +128,19 @@ for eps = eps_all
                 %% calculate stress at top & bottom using hognestead, assuming cracked behavior
                 Ec = 57000*layer_c{1}.compressiveStrength;
                 
-                strain_top = getStrainAtDepth(c-subLayer+dh,phi);
-                if (strain_top < 0)
-                    strain_top = 0;
-                end 
-                f_top = getHognestad(layer_c{1}.compressiveStrength,strain_top,Ec,eps);
+                strain_top = getStrainAtDepth(subLayer+dh-c,phi);
+
+                f_top = getHognestad(-layer_c{1}.compressiveStrength,strain_top,Ec,defaults.eps_0);
                 
                 strain_bot = getStrainAtDepth(c-subLayer,phi);
                 if (strain_bot < 0)
                     strain_bot = 0;
                 end
-                f_bot = getHognestad(layer_c{1}.compressiveStrength,strain_bot,Ec,eps);
+                f_bot = getHognestad(-layer_c{1}.compressiveStrength,strain_bot,Ec,defaults.eps_0);
                 
-                %% calculate force at sub layer
+                f_mid(end+1) = .5*(f_bot+f_top);
+                
+                %% calculate force at sub layer             
                 F_conc_subLayers(size(F_conc_subLayers,2)+1) = dh*b*(f_top + f_bot)/2;
                 h_subLayers(size(h_subLayers,2)+1) = c-(subLayer+dh/2);
             end
@@ -146,7 +154,16 @@ for eps = eps_all
         for layer_ps = layers_ps(1:end)
             
             e = layer_ps{1}.centroid - c;
-            eps_s = getStrainAtDepth(e,phi);
+            
+            % Strain from jacking
+            eps_1 = layer_ps{1}.prestressForce / (layer_ps{1}.area * layer_ps{1}.modulus);
+            % Strain from concrete
+            eps_2 = 0;
+            
+            % Elastic Shortening
+            eps_c = getStrainAtDepth(e,phi);
+            
+            eps_s = eps_1 + eps_2 +eps_c*(layer_ps{1}.centroid - c)/c;
             Q = .031;
             R = 7.36;
             K = 1.04;
@@ -164,8 +181,11 @@ for eps = eps_all
         F_r = 0;
         
         %% sum forces
+        %F_conc
+        %F_ps
         diff = F_conc + F_ps + F_r;
         %disp(['Error: ',num2str(diff)]);
+        %disp(num2str(j));
         
         if (j > max_iterations)
             delete(h_wait);
@@ -188,7 +208,13 @@ for eps = eps_all
     disp(['Neutral Axis Depth: ', num2str(c), ' in']);
     
     figure;
-    plot(F_conc_subLayers,h_subLayers);
+    subplot(1,2,1);
+    scatter(F_conc_subLayers,h_subLayers);
+    title('Total Force in Each Layer');
+    
+    subplot(1,2,2);
+    scatter(f_mid,h_subLayers);
+    title('Stress');
     
 end 
 
@@ -200,6 +226,7 @@ end
     
     figure;
     plot(phi_all,Mn_all);
+    title('Moment Curvature Diagram');
     
     %%
        
