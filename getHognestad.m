@@ -30,7 +30,7 @@ elseif eps > eps_0
 elseif eps > -.04
     
     eps_50u = (3+.002*abs(fc))/(abs(fc)-1000);
-    eps_c0 = .002;
+    eps_c0 = .0024;
     z = .5/(eps_50u-eps_c0);
     
     value = fc*(1-z*(abs(eps)-eps_c0)); % Kent & Park

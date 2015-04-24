@@ -21,7 +21,7 @@ eps_c_min = .0005;
 eps_c_max = .004;
 eps_c_inc = .0001;
 
-plot_graphs = 'no';
+plot_graphs = 'yes';
 
 % numerical tolerances
 sub_layers = 100; % number of layers to divide each layer
@@ -211,6 +211,7 @@ for eps = eps_all
     phi_all(size(phi_all,2)+1) = phi;
     
     disp(['TEST CASE COMPLETE eps = ', num2str(eps)]);
+    disp(['Curvature: ', num2str(phi)]);
     disp(['Nominal Moment Capacity: ', num2str(test_cases{i}.moment),' lbf-in, ',num2str(test_cases{i}.moment/12000),' kip-ft']);
     disp(['Neutral Axis Depth: ', num2str(c), ' in']);
     disp(['Iterations Required: ', num2str(j)]);
