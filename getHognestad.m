@@ -22,13 +22,22 @@ fcc = fc.*((2.*-.003)./eps_0 - (-.003./eps_0).^2);
 if eps > 2*eps_r
     value = 0;
 elseif eps > eps_r
-    value = -fr*(eps-eps_r)/(eps_r);
+    value = fr*(1-((eps-eps_r)/eps_r));
 elseif eps > 0
-    value = -fr*(eps_r-eps)/(eps_r);
-elseif eps > -.003
+    value = fr*(eps/eps_r);
+elseif eps > eps_0
     value = fc.*((2.*eps)./eps_0 - (eps./eps_0).^2); 
 elseif eps > -.04
-    value = fcc*(1-(eps-.003)/(.04-.003));
+    
+    eps_50u = (3+.002*abs(fc))/(abs(fc)-1000);
+    eps_c0 = .002;
+    z = .5/(eps_50u-eps_c0);
+    
+    value = fc*(1-z*(abs(eps)-eps_c0)); % Kent & Park
+    if value > 0
+        value = 0;
+        return
+    end
 else
     value = 0;
 end

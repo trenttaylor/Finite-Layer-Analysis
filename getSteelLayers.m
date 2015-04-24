@@ -35,10 +35,11 @@ for i = 1:str2num(layerCount{1})
     
     %% Pre-stress losses
     if (layers{i}.ultimateStrength > 120000)
-        answer2 = inputdlg({'Ultimate Force','Prestress Losses (decimal)','Modulus of Elasticity'},'PRESTRESS PROPERTIES',1,{num2str(layers{i}.ultimateStrength),'','28500000'});
+        answer2 = inputdlg({'Ultimate Force','Effective Prestress Force','Modulus of Elasticity'},'PRESTRESS PROPERTIES',1,{num2str(layers{i}.ultimateStrength),'','28500000'});
         layers{i}.ultimateStrength = str2num(answer2{1});
         layers{i}.yeildStress = .9 * layers{i}.ultimateStrength; 
-        layers{i}.prestressForce = layers{i}.ultimateStrength * .75 * (1-str2num(answer2{2}));
+        layers{i}.prestressForce = str2num(answer2{2});
+        layers{i}.prestressStress = layers{i}.prestressForce / layers{i}.area;
         layers{i}.modulus = str2num(answer2{3});
     end
 end

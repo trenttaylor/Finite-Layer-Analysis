@@ -1,0 +1,596 @@
+
+<!DOCTYPE html
+  PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head>
+      <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+   <!--
+This HTML was auto-generated from MATLAB code.
+To make changes, update the MATLAB code and republish this document.
+      --><title>FiniteLayerAnalysis</title><meta name="generator" content="MATLAB 7.13"><link rel="schema.DC" href="http://purl.org/dc/elements/1.1/"><meta name="DC.date" content="2015-04-24"><meta name="DC.source" content="FiniteLayerAnalysis.m"><style type="text/css">
+
+body {
+  background-color: white;
+  margin:10px;
+}
+
+h1 {
+  color: #990000; 
+  font-size: x-large;
+}
+
+h2 {
+  color: #990000;
+  font-size: medium;
+}
+
+/* Make the text shrink to fit narrow windows, but not stretch too far in 
+wide windows. */ 
+p,h1,h2,div.content div {
+  max-width: 600px;
+  /* Hack for IE6 */
+  width: auto !important; width: 600px;
+}
+
+pre.codeinput {
+  background: #EEEEEE;
+  padding: 10px;
+}
+@media print {
+  pre.codeinput {word-wrap:break-word; width:100%;}
+} 
+
+span.keyword {color: #0000FF}
+span.comment {color: #228B22}
+span.string {color: #A020F0}
+span.untermstring {color: #B20000}
+span.syscmd {color: #B28C00}
+
+pre.codeoutput {
+  color: #666666;
+  padding: 10px;
+}
+
+pre.error {
+  color: red;
+}
+
+p.footer {
+  text-align: right;
+  font-size: xx-small;
+  font-weight: lighter;
+  font-style: italic;
+  color: gray;
+}
+
+  </style></head><body><div class="content"><h2>Contents</h2><div><ul><li><a href="#1">FINITE LAYER ANALYSIS</a></li><li><a href="#2">DESCRIPTION</a></li><li><a href="#3">WORKSPACE PREPARATION</a></li><li><a href="#4">INPUT PARAMETERS</a></li><li><a href="#5">CALCULATIONS</a></li><li><a href="#6">Section Properties</a></li><li><a href="#7">SET UP TEST CASES</a></li><li><a href="#8">RUN ANALYSIS</a></li><li><a href="#10">Initialization</a></li><li><a href="#11">Guess c</a></li><li><a href="#13">Re-estimate c after first iteration</a></li><li><a href="#14">Curvature</a></li><li><a href="#15">Calculate stress &amp; force in concrete</a></li><li><a href="#16">calculate stress at top &amp; bottom using hognestead, assuming cracked behavior</a></li><li><a href="#17">calculate force at sub layer</a></li><li><a href="#19">Calculate stress &amp; force in prestress</a></li><li><a href="#20">calculate stress &amp; force in passive steel</a></li><li><a href="#21">Sum forces</a></li><li><a href="#23">Calculate Moment Capacity</a></li><li><a href="#25">RESULTS</a></li><li><a href="#27">LICENSE</a></li></ul></div><h2>FINITE LAYER ANALYSIS<a name="1"></a></h2><p>FiniteLayerAnalysis.m</p><pre class="codeinput"><span class="comment">% 3 Mar 2015</span>
+<span class="comment">% Trent Taylor</span>
+</pre><h2>DESCRIPTION<a name="2"></a></h2><p>This script is the main script for the finite layer analysis. Function calls will be handled and outputs received.</p><h2>WORKSPACE PREPARATION<a name="3"></a></h2><pre class="codeinput">close <span class="string">all</span>
+clear
+clc
+fprintf([fileread(<span class="string">'license'</span>),<span class="string">'\n\n'</span>]);
+disp(<span class="string">'FINITE LAYER ANALYSIS'</span>);
+</pre><pre class="codeoutput">The MIT License (MIT)
+
+Copyright (c) 2015 trenttaylor
+
+Permission is hereby granted, free of charge, to any person obtaining a copy 
+of this software and associated documentation files (the "Software"), to deal 
+in the Software without restriction, including without limitation the rights 
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell 
+copies of the Software, and to permit persons to whom the Software is furnished 
+to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in 
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL 
+THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING 
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER 
+DEALINGS IN THE SOFTWARE.
+
+FINITE LAYER ANALYSIS
+</pre><h2>INPUT PARAMETERS<a name="4"></a></h2><pre class="codeinput">disp(<span class="string">'Getting Cross Sectional Data'</span>);
+load(<span class="string">'defaults.mat'</span>);
+
+disp(<span class="string">'Cross sections are stored and can be retrieved.'</span>);
+sectionName = input(<span class="string">'Input Cross Section Name:'</span>);
+
+<span class="keyword">if</span> (exist([sectionName,<span class="string">'.mat'</span>],<span class="string">'file'</span>) ~= 2)
+
+    <span class="comment">% Concrete Layers</span>
+    layers_conc = getConcreteLayers(defaults.compressiveStrength);
+
+    <span class="comment">% Steel Layers</span>
+    layers_ps = getSteelLayers(defaults.prestressGrade);
+    layers_r = getSteelLayers(defaults.steelGrade);
+
+    save([sectionName,<span class="string">'.mat'</span>],<span class="string">'layers_conc'</span>,<span class="string">'layers_ps'</span>,<span class="string">'layers_r'</span>);
+<span class="keyword">else</span>
+    load([sectionName,<span class="string">'.mat'</span>]);
+<span class="keyword">end</span>
+
+<span class="comment">% numerical tolerances</span>
+sub_layers = 100; <span class="comment">% number of layers to divide each layer</span>
+tolerance = .001; <span class="comment">% tolerance factor for numerical calculations (should be less than or equal to .001)</span>
+max_iterations = 500; <span class="comment">% maximum number of iterations</span>
+</pre><pre class="codeoutput">Getting Cross Sectional Data
+Cross sections are stored and can be retrieved.
+</pre><pre class="codeoutput">Error using input
+Cannot call INPUT from EVALC.
+
+Error in FiniteLayerAnalysis (line 23)
+sectionName = input('Input Cross Section Name:');
+</pre><h2>CALCULATIONS<a name="5"></a></h2><h2>Section Properties<a name="6"></a></h2><p>gross moment of inertia Ig = calculateMomentOfInertia(layers_conc);</p><pre class="codeinput">temp = [layers_conc{:}];
+
+b=0;
+
+<span class="keyword">for</span> i = 1:size(layers_conc,2)
+    b = max(b,layers_conc{i}.width);
+<span class="keyword">end</span>
+
+d = layers_conc{1,end}.distanceToBot;
+dt_ps = getSteelCentroid(layers_ps);
+
+Mn_all = [];
+phi_all = [];
+</pre><h2>SET UP TEST CASES<a name="7"></a></h2><pre class="codeinput">test_cases{1}.eps = 0.002;
+
+<span class="keyword">for</span> eps = test_cases{1}.eps:.00005:.004
+    test_cases{end+1}.eps = eps;
+<span class="keyword">end</span>
+
+temp = [test_cases{:}];
+eps_all = [temp(:).eps];
+
+i = 0;
+</pre><h2>RUN ANALYSIS<a name="8"></a></h2><pre class="codeinput"><span class="keyword">for</span> eps = eps_all
+</pre><h2>Initialization<a name="10"></a></h2><pre class="codeinput">    i = i+1;
+    diff = 1;
+    j = 0;
+</pre><h2>Guess c<a name="11"></a></h2><pre class="codeinput">    c = dt_ps / 2;
+    <span class="comment">% set limits for bisection</span>
+    c_toplimit = 0;
+    c_botlimit = layers_conc{end}.distanceToBot;
+
+    h_wait = waitbar(0,<span class="string">'Name'</span>);
+    set(h_wait,<span class="string">'Name'</span>,[<span class="string">'Test Case '</span>, num2str(i), <span class="string">' eps = '</span>,num2str(test_cases{i}.eps)]);
+
+    diff_max = diff;
+    <span class="comment">%diff</span>
+    <span class="comment">%tolerance</span>
+
+    <span class="keyword">while</span> (abs(diff) &gt; tolerance)
+</pre><pre class="codeinput">        j = j+1;
+        F_conc_subLayers = [];
+        F_ps_subLayers = [];
+        h_subLayers = [];
+        f_mid = [];
+</pre><h2>Re-estimate c after first iteration<a name="13"></a></h2><pre class="codeinput">        <span class="keyword">if</span> (j~=1 &amp;&amp; -F_conc &gt; F_ps + F_r)
+            <span class="comment">% F_conc is too big, decrease c</span>
+            c_botlimit = c;
+            c = .5 * (c_toplimit + c_botlimit);
+
+            diff_max = max(diff_max,diff);
+            waitbar((1-abs(diff/diff_max)),h_wait,[<span class="string">'Current c = '</span>, sprintf(<span class="string">'%12.2f'</span>,c),<span class="string">' diff = '</span>,sprintf(<span class="string">'%12.2f'</span>,diff)])
+
+        <span class="keyword">elseif</span> (j~=1 &amp;&amp; -F_conc &lt; F_ps + F_r)
+            <span class="comment">% F_conc is too small, increase c</span>
+            c_toplimit = c;
+            c = .5 * (c_toplimit + c_botlimit);
+
+            diff_max = max(diff_max,diff);
+            waitbar((1-abs(diff/diff_max)),h_wait,[<span class="string">'Current c = '</span>, sprintf(<span class="string">'%12.2f'</span>,c),<span class="string">' diff = '</span>,sprintf(<span class="string">'%12.2f'</span>,diff)])
+        <span class="keyword">end</span>
+</pre><h2>Curvature<a name="14"></a></h2><pre class="codeinput">        phi = eps/c;
+</pre><h2>Calculate stress &amp; force in concrete<a name="15"></a></h2><pre class="codeinput">        <span class="keyword">for</span> layer_c = layers_conc(1:end)
+            <span class="comment">% height of each sub layer</span>
+            h = layer_c{1}.distanceToBot - layer_c{1}.distanceToTop;
+            dh = h/sub_layers;
+            b = layer_c{1}.width;
+
+            <span class="keyword">for</span> subLayer = layer_c{1}.distanceToTop:dh:layer_c{1}.distanceToBot-dh
+</pre><h2>calculate stress at top &amp; bottom using hognestead, assuming cracked behavior<a name="16"></a></h2><pre class="codeinput">                Ec = 57000*sqrt(layer_c{1}.compressiveStrength);
+
+                strain_top = getStrainAtDepth(subLayer-c,phi);
+                f_top = getHognestad(-layer_c{1}.compressiveStrength,strain_top,Ec,defaults.eps_0);
+
+                strain_bot = getStrainAtDepth(subLayer+dh-c,phi);
+                f_bot = getHognestad(-layer_c{1}.compressiveStrength,strain_bot,Ec,defaults.eps_0);
+
+                f_mid(end+1) = .5*(f_bot+f_top);
+</pre><h2>calculate force at sub layer<a name="17"></a></h2><pre class="codeinput">                F_conc_subLayers(size(F_conc_subLayers,2)+1) = abs(dh)*b*(f_top + f_bot)/2;
+                h_subLayers(end+1) = -subLayer-dh/2;
+</pre><pre class="codeinput">            <span class="keyword">end</span>
+        <span class="keyword">end</span>
+
+        <span class="comment">% sum forces</span>
+        F_conc = sum(F_conc_subLayers);
+</pre><h2>Calculate stress &amp; force in prestress<a name="19"></a></h2><pre class="codeinput">        d_ps_subLayers = [];
+        f_ps_subLayers = [];
+
+        <span class="keyword">for</span> layer_ps = layers_ps(1:end)
+
+            e = layer_ps{1}.centroid - c;
+
+            <span class="comment">% Strain from jacking</span>
+            eps_1 = layer_ps{1}.prestressForce / (layer_ps{1}.area * layer_ps{1}.modulus);
+            <span class="comment">% Strain from concrete</span>
+            eps_2 = 0;
+
+            <span class="comment">% Elastic Shortening</span>
+            eps_c = getStrainAtDepth(e,phi);
+
+            eps_s = eps_1 + eps_2 +eps_c;
+            Q = .031;
+            R = 7.36;
+            K = 1.04;
+
+            fps = getPowerFormula(eps_s, layer_ps{1}.yeildStress, layer_ps{1}.ultimateStrength, layer_ps{1}.modulus, Q, R, K);
+
+            Aps = layer_ps{1}.area;
+            F_ps_subLayers(end+1) = Aps*fps;
+            f_ps_subLayers(end+1) = fps;
+            d_ps_subLayers(end+1) = layer_ps{1}.centroid;
+
+        <span class="keyword">end</span>
+        F_ps = sum(F_ps_subLayers);
+</pre><h2>calculate stress &amp; force in passive steel<a name="20"></a></h2><p>TODO: Implmement passive reinforcement</p><pre class="codeinput">        F_r = 0;
+</pre><h2>Sum forces<a name="21"></a></h2><pre class="codeinput">        diff = F_conc + F_ps + F_r;
+        <span class="comment">%disp(['Error: ',num2str(diff)]);</span>
+        <span class="comment">%disp(num2str(j));</span>
+
+        <span class="keyword">if</span> (j &gt; max_iterations)
+            delete(h_wait);
+            error(<span class="string">'Non-converging solution. Exceeded maximum number of iterations'</span>);
+        <span class="keyword">end</span>
+</pre><pre class="codeinput">    <span class="keyword">end</span>
+
+    delete(h_wait);
+</pre><h2>Calculate Moment Capacity<a name="23"></a></h2><pre class="codeinput">    Mn = e*F_ps; <span class="comment">%TODO: Fix assumption of single layer of ps</span>
+    test_cases{i}.moment = Mn;
+    test_cases{i}.curvature = phi;
+
+    Mn_all(size(Mn_all,2)+1) = Mn;
+    phi_all(size(phi_all,2)+1) = phi;
+
+    disp([<span class="string">'TEST CASE COMPLETE eps = '</span>, num2str(eps)]);
+    disp([<span class="string">'Nominal Moment Capacity: '</span>, num2str(test_cases{i}.moment),<span class="string">' lbf-in, '</span>,num2str(test_cases{i}.moment/12000),<span class="string">' kip-ft'</span>]);
+    disp([<span class="string">'Neutral Axis Depth: '</span>, num2str(c), <span class="string">' in'</span>]);
+    disp([<span class="string">'Iterations Required: '</span>, num2str(j)]);
+
+    figure;
+    suptitle([<span class="string">'Eps = '</span>, num2str(eps)]);
+    subplot(2,2,1);
+    scatter(F_conc_subLayers,h_subLayers,<span class="string">'.'</span>);
+    title(<span class="string">'Total Force in Each Layer'</span>);
+
+    subplot(2,2,2);
+    scatter(f_mid,h_subLayers,<span class="string">'.'</span>);
+    title(<span class="string">'Stress'</span>);
+
+    subplot(2,2,3);
+    hold <span class="string">on</span>
+    scatter(F_conc_subLayers,h_subLayers,<span class="string">'.'</span>);
+    barh(-d_ps_subLayers,f_ps_subLayers);
+    title(<span class="string">'Force Diagram'</span>);
+    hold <span class="string">off</span>
+
+    subplot(2,2,4);
+    xcoords = [0,-eps,getStrainAtDepth(layers_conc{end}.distanceToBot,phi),0,0];
+    ycoords = [0,0,-layers_conc{end}.distanceToBot,-layers_conc{end}.distanceToBot,0];
+    line(xcoords,ycoords);
+    text(0,-c,[<span class="string">'c = '</span>, num2str(c)]);
+</pre><pre class="codeinput"><span class="keyword">end</span>
+</pre><h2>RESULTS<a name="25"></a></h2><pre class="codeinput">    figure;
+    plot(phi_all,Mn_all);
+    title(<span class="string">'Moment Curvature Diagram'</span>);
+    xlabel(<span class="string">'Curvature [in/in]'</span>);
+    ylabel(<span class="string">'Moment [lbf-in]'</span>);
+</pre><pre class="codeinput">disp(<span class="string">'FINISHED!'</span>)
+</pre><h2>LICENSE<a name="27"></a></h2><pre class="codeinput"><span class="comment">%{
+</span><span class="comment">    The MIT License (MIT)
+</span><span class="comment">
+</span><span class="comment">    Copyright (c) 2015 trenttaylor
+</span><span class="comment">
+</span><span class="comment">    Permission is hereby granted, free of charge, to any person obtaining a copy
+</span><span class="comment">    of this software and associated documentation files (the "Software"), to deal
+</span><span class="comment">    in the Software without restriction, including without limitation the rights
+</span><span class="comment">    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+</span><span class="comment">    copies of the Software, and to permit persons to whom the Software is
+</span><span class="comment">    furnished to do so, subject to the following conditions:
+</span><span class="comment">
+</span><span class="comment">    The above copyright notice and this permission notice shall be included in all
+</span><span class="comment">    copies or substantial portions of the Software.
+</span><span class="comment">
+</span><span class="comment">    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+</span><span class="comment">    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+</span><span class="comment">    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+</span><span class="comment">    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+</span><span class="comment">    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+</span><span class="comment">    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+</span><span class="comment">    SOFTWARE.
+</span><span class="comment">%}</span>
+</pre><p class="footer"><br>
+      Published with MATLAB&reg; 7.13<br></p></div><!--
+##### SOURCE BEGIN #####
+%% FINITE LAYER ANALYSIS
+% FiniteLayerAnalysis.m
+
+% 3 Mar 2015
+% Trent Taylor
+
+%% DESCRIPTION
+% This script is the main script for the finite layer analysis. Function
+% calls will be handled and outputs received.
+
+%% WORKSPACE PREPARATION
+close all
+clear
+clc
+fprintf([fileread('license'),'\n\n']);
+disp('FINITE LAYER ANALYSIS');
+
+%% INPUT PARAMETERS
+disp('Getting Cross Sectional Data');
+load('defaults.mat');
+
+disp('Cross sections are stored and can be retrieved.');
+sectionName = input('Input Cross Section Name:');
+
+if (exist([sectionName,'.mat'],'file') ~= 2)
+    
+    % Concrete Layers
+    layers_conc = getConcreteLayers(defaults.compressiveStrength);
+
+    % Steel Layers
+    layers_ps = getSteelLayers(defaults.prestressGrade);
+    layers_r = getSteelLayers(defaults.steelGrade);
+    
+    save([sectionName,'.mat'],'layers_conc','layers_ps','layers_r');
+else
+    load([sectionName,'.mat']);
+end
+
+% numerical tolerances
+sub_layers = 100; % number of layers to divide each layer
+tolerance = .001; % tolerance factor for numerical calculations (should be less than or equal to .001)
+max_iterations = 500; % maximum number of iterations
+
+%% CALCULATIONS
+%% Section Properties
+% gross moment of inertia
+% Ig = calculateMomentOfInertia(layers_conc);
+
+temp = [layers_conc{:}];
+
+b=0;
+
+for i = 1:size(layers_conc,2)
+    b = max(b,layers_conc{i}.width);
+end
+
+d = layers_conc{1,end}.distanceToBot;
+dt_ps = getSteelCentroid(layers_ps);
+
+Mn_all = [];
+phi_all = [];
+
+%% SET UP TEST CASES
+test_cases{1}.eps = 0.002;
+
+for eps = test_cases{1}.eps:.00005:.004
+    test_cases{end+1}.eps = eps;
+end
+
+temp = [test_cases{:}];
+eps_all = [temp(:).eps];
+
+i = 0;
+
+%% RUN ANALYSIS
+
+for eps = eps_all
+
+    %% Initialization
+    i = i+1;
+    diff = 1;
+    j = 0;
+    
+    %% Guess c
+    c = dt_ps / 2;
+    % set limits for bisection
+    c_toplimit = 0;
+    c_botlimit = layers_conc{end}.distanceToBot;
+
+    h_wait = waitbar(0,'Name');
+    set(h_wait,'Name',['Test Case ', num2str(i), ' eps = ',num2str(test_cases{i}.eps)]);
+    
+    diff_max = diff;
+    %diff
+    %tolerance
+    
+    while (abs(diff) > tolerance)
+        j = j+1;
+        F_conc_subLayers = [];
+        F_ps_subLayers = [];
+        h_subLayers = [];
+        f_mid = [];
+        
+        %% Re-estimate c after first iteration
+        if (j~=1 && -F_conc > F_ps + F_r)
+            % F_conc is too big, decrease c
+            c_botlimit = c;
+            c = .5 * (c_toplimit + c_botlimit);
+            
+            diff_max = max(diff_max,diff);
+            waitbar((1-abs(diff/diff_max)),h_wait,['Current c = ', sprintf('%12.2f',c),' diff = ',sprintf('%12.2f',diff)])
+            
+        elseif (j~=1 && -F_conc < F_ps + F_r)
+            % F_conc is too small, increase c
+            c_toplimit = c;
+            c = .5 * (c_toplimit + c_botlimit);
+            
+            diff_max = max(diff_max,diff);
+            waitbar((1-abs(diff/diff_max)),h_wait,['Current c = ', sprintf('%12.2f',c),' diff = ',sprintf('%12.2f',diff)])
+        end
+        
+        %% Curvature
+        phi = eps/c;
+        
+        %% Calculate stress & force in concrete
+        for layer_c = layers_conc(1:end)
+            % height of each sub layer
+            h = layer_c{1}.distanceToBot - layer_c{1}.distanceToTop;
+            dh = h/sub_layers;
+            b = layer_c{1}.width;
+            
+            for subLayer = layer_c{1}.distanceToTop:dh:layer_c{1}.distanceToBot-dh
+                %% calculate stress at top & bottom using hognestead, assuming cracked behavior
+                Ec = 57000*sqrt(layer_c{1}.compressiveStrength);
+                
+                strain_top = getStrainAtDepth(subLayer-c,phi);
+                f_top = getHognestad(-layer_c{1}.compressiveStrength,strain_top,Ec,defaults.eps_0);
+                
+                strain_bot = getStrainAtDepth(subLayer+dh-c,phi);
+                f_bot = getHognestad(-layer_c{1}.compressiveStrength,strain_bot,Ec,defaults.eps_0);
+                
+                f_mid(end+1) = .5*(f_bot+f_top);
+                
+                %% calculate force at sub layer             
+                F_conc_subLayers(size(F_conc_subLayers,2)+1) = abs(dh)*b*(f_top + f_bot)/2;
+                h_subLayers(end+1) = -subLayer-dh/2;
+            end
+        end
+        
+        % sum forces
+        F_conc = sum(F_conc_subLayers);
+        
+        %% Calculate stress & force in prestress
+        d_ps_subLayers = [];
+        f_ps_subLayers = [];
+        
+        for layer_ps = layers_ps(1:end)
+            
+            e = layer_ps{1}.centroid - c;
+            
+            % Strain from jacking
+            eps_1 = layer_ps{1}.prestressForce / (layer_ps{1}.area * layer_ps{1}.modulus);
+            % Strain from concrete
+            eps_2 = 0;
+            
+            % Elastic Shortening
+            eps_c = getStrainAtDepth(e,phi);
+            
+            eps_s = eps_1 + eps_2 +eps_c;
+            Q = .031;
+            R = 7.36;
+            K = 1.04;
+            
+            fps = getPowerFormula(eps_s, layer_ps{1}.yeildStress, layer_ps{1}.ultimateStrength, layer_ps{1}.modulus, Q, R, K);
+            
+            Aps = layer_ps{1}.area;
+            F_ps_subLayers(end+1) = Aps*fps;
+            f_ps_subLayers(end+1) = fps;
+            d_ps_subLayers(end+1) = layer_ps{1}.centroid;
+            
+        end
+        F_ps = sum(F_ps_subLayers);
+        
+        %% calculate stress & force in passive steel
+        % TODO: Implmement passive reinforcement
+        F_r = 0;
+        
+        %% Sum forces
+        diff = F_conc + F_ps + F_r;
+        %disp(['Error: ',num2str(diff)]);
+        %disp(num2str(j));
+        
+        if (j > max_iterations)
+            delete(h_wait);
+            error('Non-converging solution. Exceeded maximum number of iterations');
+        end
+    end
+    
+    delete(h_wait);
+    
+    %% Calculate Moment Capacity
+    Mn = e*F_ps; %TODO: Fix assumption of single layer of ps
+    test_cases{i}.moment = Mn;
+    test_cases{i}.curvature = phi;
+    
+    Mn_all(size(Mn_all,2)+1) = Mn;
+    phi_all(size(phi_all,2)+1) = phi;
+    
+    disp(['TEST CASE COMPLETE eps = ', num2str(eps)]);
+    disp(['Nominal Moment Capacity: ', num2str(test_cases{i}.moment),' lbf-in, ',num2str(test_cases{i}.moment/12000),' kip-ft']);
+    disp(['Neutral Axis Depth: ', num2str(c), ' in']);
+    disp(['Iterations Required: ', num2str(j)]);
+    
+    figure;
+    suptitle(['Eps = ', num2str(eps)]);
+    subplot(2,2,1);
+    scatter(F_conc_subLayers,h_subLayers,'.');
+    title('Total Force in Each Layer');
+    
+    subplot(2,2,2);
+    scatter(f_mid,h_subLayers,'.');
+    title('Stress');
+    
+    subplot(2,2,3);
+    hold on
+    scatter(F_conc_subLayers,h_subLayers,'.');   
+    barh(-d_ps_subLayers,f_ps_subLayers);
+    title('Force Diagram');
+    hold off
+    
+    subplot(2,2,4);
+    xcoords = [0,-eps,getStrainAtDepth(layers_conc{end}.distanceToBot,phi),0,0];
+    ycoords = [0,0,-layers_conc{end}.distanceToBot,-layers_conc{end}.distanceToBot,0];
+    line(xcoords,ycoords);
+    text(0,-c,['c = ', num2str(c)]);
+    
+end 
+
+%% RESULTS
+        
+    figure;
+    plot(phi_all,Mn_all);
+    title('Moment Curvature Diagram');
+    xlabel('Curvature [in/in]');
+    ylabel('Moment [lbf-in]');
+    
+    %%
+       
+
+disp('FINISHED!')
+
+
+%% LICENSE
+%{
+    The MIT License (MIT)
+
+    Copyright (c) 2015 trenttaylor
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
+%}
+##### SOURCE END #####
+--></body></html>

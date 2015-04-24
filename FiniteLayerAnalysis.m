@@ -39,7 +39,7 @@ end
 % numerical tolerances
 sub_layers = 100; % number of layers to divide each layer
 tolerance = .001; % tolerance factor for numerical calculations (should be less than or equal to .001)
-max_iterations = 100; % maximum number of iterations
+max_iterations = 500; % maximum number of iterations
 
 %% CALCULATIONS
 %% Section Properties
@@ -47,36 +47,41 @@ max_iterations = 100; % maximum number of iterations
 % Ig = calculateMomentOfInertia(layers_conc);
 
 temp = [layers_conc{:}];
-b = max(temp.width);
+
+b=0;
+
+for i = 1:size(layers_conc,2)
+    b = max(b,layers_conc{i}.width);
+end
+
 d = layers_conc{1,end}.distanceToBot;
 dt_ps = getSteelCentroid(layers_ps);
 
 Mn_all = [];
 phi_all = [];
 
-%% set up test cases
-test_cases{1}.eps = 0.001;
+%% SET UP TEST CASES
+test_cases{1}.eps = 0.002;
 
-for eps = test_cases{1}.eps:.0001:.003
+for eps = test_cases{1}.eps:.00005:.004
     test_cases{end+1}.eps = eps;
 end
-
-%%
 
 temp = [test_cases{:}];
 eps_all = [temp(:).eps];
 
-%%
 i = 0;
+
+%% RUN ANALYSIS
 
 for eps = eps_all
 
-    %% initilization
+    %% Initialization
     i = i+1;
     diff = 1;
     j = 0;
     
-    %% guess c
+    %% Guess c
     c = dt_ps / 2;
     % set limits for bisection
     c_toplimit = 0;
@@ -96,7 +101,7 @@ for eps = eps_all
         h_subLayers = [];
         f_mid = [];
         
-        %% re-estimate c after first iteration
+        %% Re-estimate c after first iteration
         if (j~=1 && -F_conc > F_ps + F_r)
             % F_conc is too big, decrease c
             c_botlimit = c;
@@ -114,42 +119,40 @@ for eps = eps_all
             waitbar((1-abs(diff/diff_max)),h_wait,['Current c = ', sprintf('%12.2f',c),' diff = ',sprintf('%12.2f',diff)])
         end
         
-        %% curvature
+        %% Curvature
         phi = eps/c;
         
-        %% calculate stress & force in concrete
+        %% Calculate stress & force in concrete
         for layer_c = layers_conc(1:end)
             % height of each sub layer
             h = layer_c{1}.distanceToBot - layer_c{1}.distanceToTop;
             dh = h/sub_layers;
             b = layer_c{1}.width;
             
-            for subLayer = layer_c{1}.distanceToBot:-dh:layer_c{1}.distanceToTop+dh
+            for subLayer = layer_c{1}.distanceToTop:dh:layer_c{1}.distanceToBot-dh
                 %% calculate stress at top & bottom using hognestead, assuming cracked behavior
-                Ec = 57000*layer_c{1}.compressiveStrength;
+                Ec = 57000*sqrt(layer_c{1}.compressiveStrength);
                 
-                strain_top = getStrainAtDepth(subLayer+dh-c,phi);
-
+                strain_top = getStrainAtDepth(subLayer-c,phi);
                 f_top = getHognestad(-layer_c{1}.compressiveStrength,strain_top,Ec,defaults.eps_0);
                 
-                strain_bot = getStrainAtDepth(c-subLayer,phi);
-                if (strain_bot < 0)
-                    strain_bot = 0;
-                end
+                strain_bot = getStrainAtDepth(subLayer+dh-c,phi);
                 f_bot = getHognestad(-layer_c{1}.compressiveStrength,strain_bot,Ec,defaults.eps_0);
                 
                 f_mid(end+1) = .5*(f_bot+f_top);
                 
                 %% calculate force at sub layer             
-                F_conc_subLayers(size(F_conc_subLayers,2)+1) = dh*b*(f_top + f_bot)/2;
-                h_subLayers(size(h_subLayers,2)+1) = c-(subLayer+dh/2);
+                F_conc_subLayers(size(F_conc_subLayers,2)+1) = abs(dh)*b*(f_top + f_bot)/2;
+                h_subLayers(end+1) = -subLayer-dh/2;
             end
         end
         
         % sum forces
         F_conc = sum(F_conc_subLayers);
         
-        %% calculate stress & force in prestress
+        %% Calculate stress & force in prestress
+        d_ps_subLayers = [];
+        f_ps_subLayers = [];
         
         for layer_ps = layers_ps(1:end)
             
@@ -163,7 +166,7 @@ for eps = eps_all
             % Elastic Shortening
             eps_c = getStrainAtDepth(e,phi);
             
-            eps_s = eps_1 + eps_2 +eps_c*(layer_ps{1}.centroid - c)/c;
+            eps_s = eps_1 + eps_2 +eps_c;
             Q = .031;
             R = 7.36;
             K = 1.04;
@@ -171,7 +174,9 @@ for eps = eps_all
             fps = getPowerFormula(eps_s, layer_ps{1}.yeildStress, layer_ps{1}.ultimateStrength, layer_ps{1}.modulus, Q, R, K);
             
             Aps = layer_ps{1}.area;
-            F_ps_subLayers(size(F_ps_subLayers,2)+1) = Aps*fps;
+            F_ps_subLayers(end+1) = Aps*fps;
+            f_ps_subLayers(end+1) = fps;
+            d_ps_subLayers(end+1) = layer_ps{1}.centroid;
             
         end
         F_ps = sum(F_ps_subLayers);
@@ -180,9 +185,7 @@ for eps = eps_all
         % TODO: Implmement passive reinforcement
         F_r = 0;
         
-        %% sum forces
-        %F_conc
-        %F_ps
+        %% Sum forces
         diff = F_conc + F_ps + F_r;
         %disp(['Error: ',num2str(diff)]);
         %disp(num2str(j));
@@ -200,33 +203,46 @@ for eps = eps_all
     test_cases{i}.moment = Mn;
     test_cases{i}.curvature = phi;
     
-    Mn_all(size(Mn_all,2)+1) = -Mn;
+    Mn_all(size(Mn_all,2)+1) = Mn;
     phi_all(size(phi_all,2)+1) = phi;
     
     disp(['TEST CASE COMPLETE eps = ', num2str(eps)]);
     disp(['Nominal Moment Capacity: ', num2str(test_cases{i}.moment),' lbf-in, ',num2str(test_cases{i}.moment/12000),' kip-ft']);
     disp(['Neutral Axis Depth: ', num2str(c), ' in']);
+    disp(['Iterations Required: ', num2str(j)]);
     
     figure;
-    subplot(1,2,1);
-    scatter(F_conc_subLayers,h_subLayers);
+    suptitle(['Eps = ', num2str(eps)]);
+    subplot(2,2,1);
+    scatter(F_conc_subLayers,h_subLayers,'.');
     title('Total Force in Each Layer');
     
-    subplot(1,2,2);
-    scatter(f_mid,h_subLayers);
+    subplot(2,2,2);
+    scatter(f_mid,h_subLayers,'.');
     title('Stress');
+    
+    subplot(2,2,3);
+    hold on
+    scatter(F_conc_subLayers,h_subLayers,'.');   
+    barh(-d_ps_subLayers,f_ps_subLayers);
+    title('Force Diagram');
+    hold off
+    
+    subplot(2,2,4);
+    xcoords = [0,-eps,getStrainAtDepth(layers_conc{end}.distanceToBot,phi),0,0];
+    ycoords = [0,0,-layers_conc{end}.distanceToBot,-layers_conc{end}.distanceToBot,0];
+    line(xcoords,ycoords);
+    text(0,-c,['c = ', num2str(c)]);
     
 end 
 
 %% RESULTS
-    
-    %%
-    figure;
-    plot(eps_all,Mn_all);
-    
+        
     figure;
     plot(phi_all,Mn_all);
     title('Moment Curvature Diagram');
+    xlabel('Curvature [in/in]');
+    ylabel('Moment [lbf-in]');
     
     %%
        
