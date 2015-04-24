@@ -1,7 +1,7 @@
 # finite-layer-analysis
 
 ## Introduction
-This codebase contains a script to run a finite layer analsys on a prestressed concrete beam. Concrete strenths are determined at discrete layers and are then summed into the total compressive force. The prestress force is also calcuated and then using statics the beam's capacity and curvature can be obtained.
+This codebase contains a script to run a finite layer analysis on a prestressed concrete beam. Concrete strenths are determined at discrete layers and are then summed into the total compressive force. The prestress force is also calcuated and then using statics the beam's capacity and curvature can be obtained.
 
 ## Instructions
 ### Running The Code
