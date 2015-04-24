@@ -16,6 +16,18 @@ fprintf([fileread('license'),'\n\n']);
 disp('FINITE LAYER ANALYSIS');
 
 %% INPUT PARAMETERS
+% graph limits
+eps_c_min = .0005;
+eps_c_max = .004;
+eps_c_inc = .0001;
+
+plot_graphs = 'no';
+
+% numerical tolerances
+sub_layers = 100; % number of layers to divide each layer
+tolerance = .001; % tolerance factor for numerical calculations (should be less than or equal to .001)
+max_iterations = 500; % maximum number of iterations
+
 disp('Getting Cross Sectional Data');
 load('defaults.mat');
 
@@ -36,16 +48,8 @@ else
     load([sectionName,'.mat']);
 end
 
-% numerical tolerances
-sub_layers = 100; % number of layers to divide each layer
-tolerance = .001; % tolerance factor for numerical calculations (should be less than or equal to .001)
-max_iterations = 500; % maximum number of iterations
-
 %% CALCULATIONS
 %% Section Properties
-% gross moment of inertia
-% Ig = calculateMomentOfInertia(layers_conc);
-
 temp = [layers_conc{:}];
 
 b=0;
@@ -61,9 +65,9 @@ Mn_all = [];
 phi_all = [];
 
 %% SET UP TEST CASES
-test_cases{1}.eps = 0.002;
+test_cases{1}.eps = eps_c_min;
 
-for eps = test_cases{1}.eps:.00005:.004
+for eps = test_cases{1}.eps:eps_c_inc:eps_c_max
     test_cases{end+1}.eps = eps;
 end
 
@@ -199,7 +203,7 @@ for eps = eps_all
     delete(h_wait);
     
     %% Calculate Moment Capacity
-    Mn = e*F_ps; %TODO: Fix assumption of single layer of ps
+    Mn = dt_ps*F_ps;
     test_cases{i}.moment = Mn;
     test_cases{i}.curvature = phi;
     
@@ -211,42 +215,43 @@ for eps = eps_all
     disp(['Neutral Axis Depth: ', num2str(c), ' in']);
     disp(['Iterations Required: ', num2str(j)]);
     
-    figure;
-    suptitle(['Eps = ', num2str(eps)]);
-    subplot(2,2,1);
-    scatter(F_conc_subLayers,h_subLayers,'.');
-    title('Total Force in Each Layer');
-    
-    subplot(2,2,2);
-    scatter(f_mid,h_subLayers,'.');
-    title('Stress');
-    
-    subplot(2,2,3);
-    hold on
-    scatter(F_conc_subLayers,h_subLayers,'.');   
-    barh(-d_ps_subLayers,f_ps_subLayers);
-    title('Force Diagram');
-    hold off
-    
-    subplot(2,2,4);
-    xcoords = [0,-eps,getStrainAtDepth(layers_conc{end}.distanceToBot,phi),0,0];
-    ycoords = [0,0,-layers_conc{end}.distanceToBot,-layers_conc{end}.distanceToBot,0];
-    line(xcoords,ycoords);
-    text(0,-c,['c = ', num2str(c)]);
+    if (strcmp(plot_graphs,'yes') || strcmp(plot_graphs, 'Yes'))
+        figure;
+        suptitle(['Eps = ', num2str(eps)]);
+        subplot(2,2,1);
+        scatter(F_conc_subLayers,h_subLayers,'.');
+        title('Total Force in Each Layer');
+
+        subplot(2,2,2);
+        scatter(f_mid,h_subLayers,'.');
+        title('Stress');
+
+        subplot(2,2,3);
+        hold on
+        scatter(F_conc_subLayers,h_subLayers,'.');   
+        barh(-d_ps_subLayers,f_ps_subLayers);
+        title('Force Diagram');
+        hold off
+
+        subplot(2,2,4);
+        xcoords = [0,-eps,getStrainAtDepth(layers_conc{end}.distanceToBot,phi),0,0];
+        ycoords = [0,0,-layers_conc{end}.distanceToBot,-layers_conc{end}.distanceToBot,0];
+        line(xcoords,ycoords);
+        text(0,-c,['c = ', num2str(c)]);
+    end
     
 end 
 
 %% RESULTS
         
-    figure;
-    plot(phi_all,Mn_all);
-    title('Moment Curvature Diagram');
-    xlabel('Curvature [in/in]');
-    ylabel('Moment [lbf-in]');
+figure;
+plot(phi_all,Mn_all);
+title('Moment Curvature Diagram');
+xlabel('Curvature [in/in]');
+ylabel('Moment [lbf-in]');
+ylim = get(gca,'ylim');
+set(gca,'ylim',[0,ylim(2)]);
     
-    %%
-       
-
 disp('FINISHED!')
 
 
