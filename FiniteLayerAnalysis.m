@@ -6,7 +6,7 @@
 
 %% DESCRIPTION
 % This script is the main script for the finite layer analysis. Function
-% calls will be handled and outputs received.
+% calls will be handled and outputs generated.
 
 %% WORKSPACE PREPARATION
 close all
@@ -28,11 +28,14 @@ sub_layers = 100; % number of layers to divide each layer
 tolerance = .001; % tolerance factor for numerical calculations (should be less than or equal to .001)
 max_iterations = 500; % maximum number of iterations
 
+
+%% Getting User Data
 disp('Getting Cross Sectional Data');
 load('defaults.mat');
 
 disp('Cross sections are stored and can be retrieved.');
 sectionName = input('Input Cross Section Name:');
+
 
 if (exist([sectionName,'.mat'],'file') ~= 2)
     
@@ -210,6 +213,8 @@ for eps = eps_all
     Mn_all(size(Mn_all,2)+1) = Mn;
     phi_all(size(phi_all,2)+1) = phi;
     
+    
+    %% Output Graphs
     disp(['TEST CASE COMPLETE eps = ', num2str(eps)]);
     disp(['Curvature: ', num2str(phi)]);
     disp(['Nominal Moment Capacity: ', num2str(test_cases{i}.moment),' lbf-in, ',num2str(test_cases{i}.moment/12000),' kip-ft']);
